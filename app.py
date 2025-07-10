@@ -1,7 +1,9 @@
 import os
+import random
+import string
 from datetime import datetime
 from flask import (
-    Flask, render_template, request, redirect, url_for, flash
+    Flask, render_template, request, redirect, url_for, flash, send_from_directory
 )
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import (
@@ -9,21 +11,22 @@ from flask_login import (
 )
 from flask_bcrypt import Bcrypt
 
-# --- Flask app config ---
 app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_KEY') or 'super_secret_key'
-
-# --- Database config ---
+app.secret_key = os.environ.get('SECRET_KEY', 'super_secret_key')
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///eobi_certificates.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+UPLOAD_FOLDER = 'uploads'
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
 db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
-
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-# ---- Region mapping (from your list!) ----
+# --- Region Coding ---
 REGIONS_BC_MAP = [
     # B&C-1
     {"code": "6900", "name": "Hub", "bc": "B&C-1"},
@@ -87,6 +90,19 @@ class Region(db.Model):
     name = db.Column(db.String(64), nullable=False)
     bc = db.Column(db.String(12), nullable=False)
 
+class Certificate(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    tracking_id = db.Column(db.String(32), unique=True, nullable=False)
+    claimant_name = db.Column(db.String(64), nullable=False)
+    cnic = db.Column(db.String(15), nullable=False)
+    assigned_officer = db.Column(db.String(32), nullable=True)
+    beat_code = db.Column(db.String(8), nullable=True)
+    region_code = db.Column(db.String(8), nullable=True)
+    status = db.Column(db.String(32), default="pending")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    completed_at = db.Column(db.DateTime, nullable=True)
+    file_name = db.Column(db.String(128), nullable=True)
+
 # --- INITIAL DATA LOAD ---
 @app.before_first_request
 def setup():
@@ -116,7 +132,25 @@ def load_user(username):
 @login_required
 def dashboard():
     user = current_user
-    return render_template("dashboard.html", user=user)
+    # Get all certificates for this user/region/role
+    if user.role in ["admin", "chairman"]:
+        certs = Certificate.query.all()
+    else:
+        certs = Certificate.query.filter_by(region_code=user.region_code).all()
+    # Calculate stats
+    pending = [c for c in certs if c.status == "pending"]
+    completed = [c for c in certs if c.status == "completed"]
+    for c in pending:
+        c.days_pending = (datetime.utcnow() - c.created_at).days
+    for c in completed:
+        c.days_pending = 0
+    return render_template(
+        "dashboard.html",
+        user=user,
+        certs=certs,
+        pending=pending,
+        completed=completed
+    )
 
 @app.route("/regions")
 @login_required
@@ -157,6 +191,11 @@ def login():
 def logout():
     logout_user()
     return redirect(url_for("login"))
+
+@app.route("/uploads/<filename>")
+@login_required
+def uploaded_file(filename):
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 if __name__ == "__main__":
     app.run(debug=False, host="0.0.0.0", port=5000)
