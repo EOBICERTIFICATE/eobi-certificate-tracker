@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}BTS Email & Drive Settings | EOBI Certificate Tracker{% endblock %}
+
+{% block content %}
+<div class="box" style="max-width:540px;margin:auto;">
+    <h2>BTS Settings: Email & Google Drive Integration</h2>
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <div class="msg" style="color:green;">{{ messages[0] }}</div>
+      {% endif %}
+    {% endwith %}
+
+    <form method="POST">
+        <label for="bts_email">BTS Regional Email</label>
+        <input type="email" id="bts_email" name="bts_email" value="{{ bts_email or '' }}" required placeholder="bts@region.gov.pk">
+
+        <label for="bts_email_app_password">App Password (for sending/reading mails)</label>
+        <input type="password" id="bts_email_app_password" name="bts_email_app_password" value="{{ bts_email_app_password or '' }}" required>
+
+        <!-- Optional: Auto-detect/validate email config -->
+        <button type="button" onclick="testEmailConfig()">Test Email Connection</button>
+        <span id="email-status"></span>
+
+        <label for="drive_folder_id">Google Drive Folder ID</label>
+        <input type="text" id="drive_folder_id" name="drive_folder_id" value="{{ drive_folder_id or '' }}" placeholder="Paste your folder ID here" required>
+
+        <!-- Optional: Google Drive Picker/Auth -->
+        <button type="button" onclick="showDrivePicker()">Pick Drive Folder</button>
+        <span id="drive-status"></span>
+
+        <!-- Optional: More fields -->
+        <label for="reply_to">Reply-To Email (optional)</label>
+        <input type="email" id="reply_to" name="reply_to" value="{{ reply_to or '' }}" placeholder="replyto@region.gov.pk">
+
+        <label for="backup_email">Backup Email (optional)</label>
+        <input type="email" id="backup_email" name="backup_email" value="{{ backup_email or '' }}" placeholder="backup@region.gov.pk">
+
+        <button type="submit">Update Settings</button>
+    </form>
+    <div style="margin-top:20px; padding:14px; background:#f8faff; border-radius:8px;">
+        <h4>Status</h4>
+        <b>Current Email:</b> {{ bts_email or "Not set" }}<br>
+        <b>Drive Folder:</b> {{ drive_folder_id or "Not set" }}<br>
+        {% if email_status %}
+            <span style="color:green;">&#9989; Email connection working</span><br>
+        {% else %}
+            <span style="color:red;">&#10060; Email connection NOT working</span><br>
+        {% endif %}
+        {% if drive_status %}
+            <span style="color:green;">&#9989; Google Drive connected</span>
+        {% else %}
+            <span style="color:red;">&#10060; Google Drive NOT connected</span>
+        {% endif %}
+    </div>
+    <div style="margin-top:18px; color:#777;">
+        <b>Note:</b> App password is required for Gmail/Outlook. Google Drive folder ID is the last part of your Drive folder's URL.<br>
+        Email and Drive settings are unique for each region's BTS.
+    </div>
+</div>
+
+<script>
+// Placeholder JS for future AJAX/test (backend route required)
+function testEmailConfig() {
+    document.getElementById('email-status').innerHTML = ' (Testing... feature coming soon)';
+}
+function showDrivePicker() {
+    document.getElementById('drive-status').innerHTML = ' (Google Drive Picker coming soon)';
+}
+</script>
+{% endblock %}
