@@ -1,11 +1,11 @@
 import os
 import random
 import string
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from flask import (
     Flask, render_template, request, redirect, url_for,
-    session, flash, send_from_directory, jsonify
+    session, flash, send_from_directory
 )
 from werkzeug.utils import secure_filename
 from flask_sqlalchemy import SQLAlchemy
@@ -77,6 +77,7 @@ class User(UserMixin, db.Model):
     must_change_password = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_login = db.Column(db.DateTime, nullable=True)
+    personal_no = db.Column(db.String(6), nullable=True)  # Officer's 6-digit code
 
     def get_id(self):
         return self.username
@@ -139,9 +140,9 @@ Please change your password after login."""
 def load_user(username):
     return User.query.filter_by(username=username).first()
 
-# --- ROUTES ---
+# --- INITIALIZATION (Flask 3+ use @app.before_serving) ---
 
-@app.before_first_request
+@app.before_serving
 def setup():
     db.create_all()
     # Add default chairman/admin if not exists
@@ -167,9 +168,8 @@ def setup():
 @login_required
 def dashboard():
     user = current_user
-    # Data for dashboard
     certs = Certificate.query
-    # Chairman sees everything, admin sees all, DDG/BTS see own region, officer sees assigned
+    # Role-based data filtering
     if user.role == "chairman":
         certs = certs.all()
     elif user.role == "admin":
@@ -193,7 +193,6 @@ def login():
         user = User.query.filter_by(username=username).first()
         if user and bcrypt.check_password_hash(user.password, password):
             login_user(user)
-            # Force password change if flagged
             if user.must_change_password:
                 return redirect(url_for('change_password'))
             return redirect(url_for('dashboard'))
@@ -225,16 +224,12 @@ def change_password():
             return redirect(url_for('dashboard'))
     return render_template("change_password.html")
 
-# ... (add more routes for regions, users, officers, BTS, DDGs, certificate entry/view, file upload, reporting, searching, etc.)
+# Add further routes: manage regions, officers, add certificate, list/view certificates, file upload, search, etc.
 
-# Add the remaining app code, e.g.:
-# - Add/Edit region/beat/user
-# - Assign officers to beats/regions
-# - Certificate upload, download, Google Drive move (add API hook here)
-# - Chairman/DDG/RH/BTS/Officer dashboards
-# - PDF/CSV export
-# - History of certificate assignment
-# - Reminders and custom letter templates
+@app.route('/uploads/<filename>')
+@login_required
+def uploaded_file(filename):
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 if __name__ == "__main__":
     app.run(debug=True)
