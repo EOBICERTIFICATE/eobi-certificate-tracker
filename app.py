@@ -1,241 +1,100 @@
 import os
-import random
-import string
-from datetime import datetime, timedelta
-import threading
-
+from datetime import datetime
 from flask import (
-    Flask, render_template, request, redirect, url_for,
-    session, flash, send_from_directory, jsonify
+    Flask, render_template, redirect, url_for, request,
+    flash, send_from_directory, session
 )
-from werkzeug.utils import secure_filename
 from flask_sqlalchemy import SQLAlchemy
-from flask_mail import Mail, Message
 from flask_login import (
-    LoginManager, UserMixin, login_user, login_required,
-    logout_user, current_user
+    LoginManager, login_user, logout_user, login_required,
+    current_user
 )
 from flask_bcrypt import Bcrypt
 from dotenv import load_dotenv
 
-# --- Load environment variables ---
+# Local imports
+from models import db, User, Region, Certificate  # all your SQLAlchemy models
+from utils import (
+    send_certificate_email, upload_to_gdrive,
+    schedule_reminders, allowed_file, create_tracking_id,
+    assign_bts_email_settings, assign_officer_email_settings
+)
+
 load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_KEY') or 'super_secret_key'
+app.secret_key = os.environ.get("SECRET_KEY", "dev_secret_key")
+app.config.from_object('config.Config')  # all DB/mail config in config.py
 
-# --- Database setup (SQLite for easy hosting, expandable to Postgres/MySQL) ---
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///eobi_certificates.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-db = SQLAlchemy(app)
-
-# --- Email config ---
-app.config['MAIL_SERVER'] = 'smtp.gmail.com'
-app.config['MAIL_PORT'] = 587
-app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
-app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
-app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USE_SSL'] = False
-mail = Mail(app)
-
-# --- Login/Password ---
-login_manager = LoginManager()
-login_manager.init_app(app)
-login_manager.login_view = 'login'
+db.init_app(app)
 bcrypt = Bcrypt(app)
 
-UPLOAD_FOLDER = 'uploads'
-if not os.path.exists(UPLOAD_FOLDER):
-    os.makedirs(UPLOAD_FOLDER)
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+login_manager = LoginManager(app)
+login_manager.login_view = "login"
 
-ALLOWED_EXTENSIONS = {'pdf', 'jpg', 'jpeg', 'png'}
-
-# --- User roles
-ROLES = [
-    "chairman", "admin", "ddg", "rh", "bts", "officer"
-]
-
-# --- Region and B&C mapping (as you provided, no extra regions!) ---
-REGIONS_BC_MAP = [
-    # B&C -1 Regions
-    {"code": "6900", "name": "Hub", "bc": "B&C-1"},
-    {"code": "6100", "name": "Quetta", "bc": "B&C-1"},
-    {"code": "100", "name": "Nazimabad", "bc": "B&C-1"},
-    {"code": "200", "name": "Karimabad", "bc": "B&C-1"},
-    {"code": "400", "name": "City", "bc": "B&C-1"},
-    {"code": "500", "name": "West Wharf", "bc": "B&C-1"},
-    {"code": "600", "name": "Karachi Central", "bc": "B&C-1"},
-    {"code": "800", "name": "Korangi", "bc": "B&C-1"},
-    {"code": "900", "name": "Bin Qasim", "bc": "B&C-1"},
-    {"code": "1000", "name": "Kotri", "bc": "B&C-1"},
-    {"code": "1100", "name": "Hyderabad", "bc": "B&C-1"},
-    {"code": "1600", "name": "Sukkur", "bc": "B&C-1"},
-    {"code": "1700", "name": "Larkana", "bc": "B&C-1"},
-
-    # B&C -2 Regions
-    {"code": "1900", "name": "Rahim Yar Khan", "bc": "B&C-2"},
-    {"code": "2000", "name": "Muzaffargarh", "bc": "B&C-2"},
-    {"code": "2100", "name": "Multan", "bc": "B&C-2"},
-    {"code": "2200", "name": "Sahiwal", "bc": "B&C-2"},
-    {"code": "2400", "name": "Bahawalpur", "bc": "B&C-2"},
-
-    {"code": "3100", "name": "Lahore South", "bc": "B&C-2"},
-    {"code": "3200", "name": "Mangamandi", "bc": "B&C-2"},
-    {"code": "3300", "name": "Lahore Central", "bc": "B&C-2"},
-    {"code": "3500", "name": "Shahdara", "bc": "B&C-2"},
-    {"code": "3600", "name": "Lahore North", "bc": "B&C-2"},
-    {"code": "3700", "name": "Sheikhupura", "bc": "B&C-2"},
-    {"code": "4100", "name": "Gujranwala", "bc": "B&C-2"},
-    {"code": "4200", "name": "Gujrat", "bc": "B&C-2"},
-    {"code": "4300", "name": "Sialkot", "bc": "B&C-2"},
-
-    # B&C -1 Regions again
-    {"code": "2500", "name": "Faisalabad Centeral", "bc": "B&C-1"},
-    {"code": "2600", "name": "Faisalabad South", "bc": "B&C-1"},
-    {"code": "2700", "name": "Faisalabad North", "bc": "B&C-1"},
-    {"code": "2800", "name": "Sargodha", "bc": "B&C-1"},
-    {"code": "4400", "name": "Jehlum", "bc": "B&C-1"},
-    {"code": "4600", "name": "Rawalpindi", "bc": "B&C-1"},
-    {"code": "4700", "name": "Islamabad East", "bc": "B&C-1"},
-    {"code": "4800", "name": "Hasanabdal", "bc": "B&C-1"},
-    {"code": "5100", "name": "Peshawar", "bc": "B&C-1"},
-    {"code": "5200", "name": "Mardan", "bc": "B&C-1"},
-    {"code": "5300", "name": "Abbottabad", "bc": "B&C-1"},
-    {"code": "5400", "name": "Gilgit", "bc": "B&C-1"},
-
-    {"code": "4900", "name": "Islamabad west", "bc": "B&C-1"},
-]
-
-# --- DB MODELS ---
-
-class User(UserMixin, db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(16), unique=True, nullable=False)
-    email = db.Column(db.String(64), unique=True, nullable=True)
-    name = db.Column(db.String(64), nullable=True)
-    password = db.Column(db.String(128), nullable=False)
-    role = db.Column(db.String(16), nullable=False)
-    region_code = db.Column(db.String(8), nullable=True)
-    beat_code = db.Column(db.String(8), nullable=True)
-    must_change_password = db.Column(db.Boolean, default=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    last_login = db.Column(db.DateTime, nullable=True)
-
-    def get_id(self):
-        return self.username
-
-class Region(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    code = db.Column(db.String(8), unique=True, nullable=False)
-    name = db.Column(db.String(64), nullable=False)
-    bc = db.Column(db.String(8), nullable=True)
-
-class Certificate(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    tracking_id = db.Column(db.String(32), unique=True, nullable=False)
-    fir = db.Column(db.String(32), nullable=True)
-    claimant_name = db.Column(db.String(64), nullable=False)
-    cnic = db.Column(db.String(15), nullable=False)
-    eobi_no = db.Column(db.String(15), nullable=False)
-    employer = db.Column(db.String(128), nullable=False)
-    beat_code = db.Column(db.String(8), nullable=True)
-    region_code = db.Column(db.String(8), nullable=False)
-    assigned_officer = db.Column(db.String(16), nullable=True)
-    file_name = db.Column(db.String(128), nullable=True)
-    status = db.Column(db.String(32), default="pending")
-    days_pending = db.Column(db.Integer, default=0)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    completed_at = db.Column(db.DateTime, nullable=True)
-    cross_verified = db.Column(db.Boolean, default=False)
-    history = db.Column(db.Text, nullable=True)
-
-# --- UTILS ---
-
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-def random_password(length=8):
-    return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
-
-def gen_tracking_id(cnic, eobi_no, region, beat):
-    rand = ''.join(random.choices(string.digits, k=3))
-    return f"{region}-{beat}-{cnic[-4:]}-{eobi_no[-4:]}-{rand}"
-
-def send_login_email(email, username, password):
-    try:
-        msg = Message('EOBI Portal Login Created',
-                      sender=app.config['MAIL_USERNAME'],
-                      recipients=[email])
-        msg.body = f"""Your EOBI Portal Login:
-
-Username: {username}
-Password: {password}
-
-Login URL: [your URL here]
-
-Please change your password after login."""
-        mail.send(msg)
-    except Exception as e:
-        print("Mail error:", e)
-
+# ---- User loader ----
 @login_manager.user_loader
-def load_user(username):
-    return User.query.filter_by(username=username).first()
+def load_user(user_id):
+    return User.query.filter_by(id=user_id).first()
 
-# --- APP SETUP: RUNS ONLY ONCE (Flask 3.x compatible) ---
-db_setup_done = False
-db_setup_lock = threading.Lock()
+# ---- Setup default users and regions ----
+@app.before_first_request
+def setup_db():
+    db.create_all()
+    # Add superadmin/chairman if missing
+    if not User.query.filter_by(username="mainadmin").first():
+        u = User(username="mainadmin", role="admin", password=bcrypt.generate_password_hash("admin123").decode('utf-8'), must_change_password=True)
+        db.session.add(u)
+    if not User.query.filter_by(username="chairman").first():
+        u = User(username="chairman", role="chairman", password=bcrypt.generate_password_hash("chairman123").decode('utf-8'), must_change_password=True)
+        db.session.add(u)
+    db.session.commit()
 
-@app.before_request
-def setup():
-    global db_setup_done
-    with db_setup_lock:
-        if not db_setup_done:
-            db.create_all()
-            # Add default chairman/admin if not exists
-            if not User.query.filter_by(username='mainadmin').first():
-                pw = bcrypt.generate_password_hash('admin123').decode('utf-8')
-                user = User(username='mainadmin', password=pw, role='admin', name='Main Admin', must_change_password=True)
-                db.session.add(user)
-            if not User.query.filter_by(username='chairman').first():
-                pw = bcrypt.generate_password_hash('chairman123').decode('utf-8')
-                user = User(username='chairman', password=pw, role='chairman', name='Chairman', must_change_password=True)
-                db.session.add(user)
-            # Add region mapping on first run
-            for reg in REGIONS_BC_MAP:
-                if not Region.query.filter_by(code=reg['code']).first():
-                    region = Region(code=reg['code'], name=reg['name'], bc=reg['bc'])
-                    db.session.add(region)
-            db.session.commit()
-            db_setup_done = True
-
-# --- ROUTES ---
+# ---- ROUTES ----
 
 @app.route("/")
 @login_required
 def dashboard():
-    user = current_user
-    certs = Certificate.query
-    if user.role == "chairman":
-        certs = certs.all()
-    elif user.role == "admin":
-        certs = certs.all()
-    elif user.role in ["ddg", "rh", "bts"]:
-        certs = certs.filter_by(region_code=user.region_code).all()
-    else:  # officer
-        certs = certs.filter_by(assigned_officer=user.username).all()
-    pending = [c for c in certs if c.status == "pending"]
-    completed = [c for c in certs if c.status == "completed"]
-    for c in certs:
-        c.days_pending = (datetime.utcnow() - c.created_at).days
-    return render_template("dashboard.html", user=user, pending=pending, completed=completed, certs=certs)
+    if current_user.role == "chairman":
+        # Show stats: pendency per DDG/BNC, color-coded (template: dashboard_chairman.html)
+        # Template: shows total, region-wise pending, overdue, etc.
+        ddg_stats = User.get_ddg_stats()
+        return render_template("dashboard_chairman.html", user=current_user, ddg_stats=ddg_stats)
+    elif current_user.role == "admin":
+        # Show regions, BTS deployment form, stats (template: dashboard_admin.html)
+        regions = Region.query.all()
+        bts_list = User.query.filter_by(role="bts").all()
+        return render_template("dashboard_admin.html", user=current_user, regions=regions, bts_list=bts_list)
+    elif current_user.role == "ddg":
+        # See all RH, all stats, color codes (dashboard_ddg.html)
+        rh_stats = User.get_rh_stats(current_user)
+        return render_template("dashboard_ddg.html", user=current_user, rh_stats=rh_stats)
+    elif current_user.role == "rh":
+        # See all BTS and Beat Officer stats (dashboard_rh.html)
+        bts_stats = User.get_bts_stats(current_user)
+        return render_template("dashboard_rh.html", user=current_user, bts_stats=bts_stats)
+    elif current_user.role == "drh":
+        # See all beat officer pendency, color (dashboard_drh.html)
+        beat_stats = User.get_beat_stats(current_user)
+        return render_template("dashboard_drh.html", user=current_user, beat_stats=beat_stats)
+    elif current_user.role == "bts":
+        # Region BTS dashboard (email/drive config, pending certs, assign certs)
+        certs = Certificate.query.filter_by(region_code=current_user.region_code).all()
+        bts_email_settings = assign_bts_email_settings(current_user.region_code)
+        return render_template("dashboard_bts.html", user=current_user, certs=certs, bts_email_settings=bts_email_settings)
+    elif current_user.role == "officer":
+        # Beat officer dashboard (certificates assigned, reply, email/drive setup)
+        certs = Certificate.query.filter_by(assigned_officer=current_user.username).all()
+        beat_email_settings = assign_officer_email_settings(current_user.username)
+        return render_template("dashboard_beat.html", user=current_user, certs=certs, beat_email_settings=beat_email_settings)
+    else:
+        return redirect(url_for('login'))
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        username = request.form['username']
-        password = request.form['password']
+        username = request.form["username"]
+        password = request.form["password"]
         user = User.query.filter_by(username=username).first()
         if user and bcrypt.check_password_hash(user.password, password):
             login_user(user)
@@ -249,28 +108,158 @@ def login():
 @login_required
 def logout():
     logout_user()
-    return redirect(url_for('login'))
+    return redirect(url_for("login"))
 
 @app.route("/change_password", methods=["GET", "POST"])
 @login_required
 def change_password():
     if request.method == "POST":
-        pw1 = request.form['password1']
-        pw2 = request.form['password2']
+        pw1 = request.form["password1"]
+        pw2 = request.form["password2"]
         if pw1 != pw2:
             flash("Passwords do not match.")
         elif len(pw1) < 6:
             flash("Password must be at least 6 characters.")
         else:
-            user = current_user
-            user.password = bcrypt.generate_password_hash(pw1).decode('utf-8')
-            user.must_change_password = False
+            current_user.password = bcrypt.generate_password_hash(pw1).decode('utf-8')
+            current_user.must_change_password = False
             db.session.commit()
             flash("Password changed successfully!")
             return redirect(url_for('dashboard'))
     return render_template("change_password.html")
 
-# ... (Add your additional routes and features here) ...
+# ---- Admin: Deploy/Manage BTS ----
+@app.route("/admin/add_bts", methods=["POST"])
+@login_required
+def add_bts():
+    if current_user.role != "admin":
+        flash("Access denied.")
+        return redirect(url_for("dashboard"))
+    username = request.form["username"]
+    email = request.form["email"]
+    region_code = request.form["region_code"]
+    pw = User.generate_temp_password()
+    if User.query.filter_by(username=username).first():
+        flash("Username already exists!")
+        return redirect(url_for("dashboard"))
+    u = User(
+        username=username, email=email, role="bts",
+        region_code=region_code,
+        password=bcrypt.generate_password_hash(pw).decode('utf-8'),
+        must_change_password=True
+    )
+    db.session.add(u)
+    db.session.commit()
+    # Send BTS login info via email (use your email utility)
+    send_certificate_email(email, "Your BTS Login", f"Username: {username}\nPassword: {pw}")
+    flash("BTS added and login sent!")
+    return redirect(url_for("dashboard"))
+
+# ---- BTS: Email/Drive config ----
+@app.route("/bts/settings", methods=["GET", "POST"])
+@login_required
+def bts_settings():
+    if current_user.role != "bts":
+        flash("Access denied.")
+        return redirect(url_for("dashboard"))
+    if request.method == "POST":
+        # Save BTS email, app password, drive folder etc
+        email = request.form["bts_email"]
+        app_password = request.form["bts_app_password"]
+        drive_folder = request.form["bts_drive_folder"]
+        # Save these in DB or .env per region (call util)
+        assign_bts_email_settings(current_user.region_code, email, app_password, drive_folder)
+        flash("Settings updated!")
+    return render_template("bts_settings.html", user=current_user)
+
+# ---- BTS: Assign Certificate ----
+@app.route("/bts/add_certificate", methods=["GET", "POST"])
+@login_required
+def add_certificate():
+    if current_user.role != "bts":
+        flash("Access denied.")
+        return redirect(url_for("dashboard"))
+    officer_list = User.get_officers_by_region(current_user.region_code)
+    if request.method == "POST":
+        fir = request.form["fir"]
+        claimant_name = request.form["claimant_name"]
+        cnic = request.form["cnic"]
+        eobi_no = request.form["eobi_no"]
+        employer = request.form["employer"]
+        beat_code = request.form["beat_code"]
+        assigned_officer = request.form["assigned_officer"]
+        cross_verified = 'cross_verified' in request.form
+        file = request.files["certificate_file"]
+        if file and allowed_file(file.filename):
+            filename = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{file.filename}"
+            file.save(os.path.join("uploads", filename))
+        else:
+            filename = None
+        # If officer does not exist, create user & send login
+        officer = User.query.filter_by(username=assigned_officer).first()
+        if not officer:
+            officer_pw = User.generate_temp_password()
+            officer = User(
+                username=assigned_officer, role="officer", region_code=current_user.region_code,
+                password=bcrypt.generate_password_hash(officer_pw).decode('utf-8'),
+                must_change_password=True
+            )
+            db.session.add(officer)
+            db.session.commit()
+            send_certificate_email(officer.email, "Your EOBI Login", f"Username: {assigned_officer}\nPassword: {officer_pw}")
+        # Create certificate
+        tracking_id = create_tracking_id(cnic, eobi_no, current_user.region_code, beat_code)
+        cert = Certificate(
+            tracking_id=tracking_id, fir=fir, claimant_name=claimant_name, cnic=cnic, eobi_no=eobi_no,
+            employer=employer, beat_code=beat_code, region_code=current_user.region_code,
+            assigned_officer=assigned_officer, file_name=filename, cross_verified=cross_verified
+        )
+        db.session.add(cert)
+        db.session.commit()
+        # Upload file to Google Drive
+        if filename:
+            upload_to_gdrive(current_user.region_code, filename)
+        # Send initial email to beat officer
+        send_certificate_email(officer.email, "Certificate Assigned", f"Certificate {tracking_id} assigned to you.")
+        flash("Certificate added and assigned!")
+        return redirect(url_for("dashboard"))
+    return render_template("add_certificate.html", officer_list=officer_list, user=current_user)
+
+# ---- Beat Officer: Email/Drive config ----
+@app.route("/officer/settings", methods=["GET", "POST"])
+@login_required
+def officer_settings():
+    if current_user.role != "officer":
+        flash("Access denied.")
+        return redirect(url_for("dashboard"))
+    if request.method == "POST":
+        # Save officer email/drive settings
+        email = request.form["bo_email"]
+        app_password = request.form["bo_app_password"]
+        drive_folder = request.form["bo_drive_folder"]
+        assign_officer_email_settings(current_user.username, email, app_password, drive_folder)
+        flash("Settings updated!")
+    return render_template("officer_settings.html", user=current_user)
+
+# ---- Certificate viewing ----
+@app.route("/uploads/<filename>")
+@login_required
+def uploaded_file(filename):
+    return send_from_directory("uploads", filename)
+
+# ---- Reminder (example endpoint, in real deploy use APScheduler or cron) ----
+@app.route("/admin/run_reminders")
+@login_required
+def run_reminders():
+    if current_user.role != "admin":
+        flash("Access denied.")
+        return redirect(url_for("dashboard"))
+    schedule_reminders()
+    flash("Reminders sent!")
+    return redirect(url_for("dashboard"))
+
+# ---- Other routes: manage regions, officers, etc. as per your templates ----
+# Add manage_regions, manage_officers, certificates, reports, etc. here as required.
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", debug=False)  # production: debug=False, host=0.0.0.0
+    app.run(host="0.0.0.0", debug=False)
