@@ -1,8 +1,9 @@
 import os
+import threading
 from datetime import datetime
 from flask import (
     Flask, render_template, redirect, url_for, request,
-    flash, send_from_directory, session
+    flash, send_from_directory
 )
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import (
@@ -12,7 +13,7 @@ from flask_login import (
 from flask_bcrypt import Bcrypt
 from dotenv import load_dotenv
 
-from models import db, User, Region, Certificate  # SQLAlchemy models
+from models import db, User, Region, Certificate
 from utils import (
     send_certificate_assignment_email, upload_to_drive,
     schedule_certificate_reminders, allowed_file, generate_tracking_id,
@@ -31,31 +32,38 @@ bcrypt = Bcrypt(app)
 login_manager = LoginManager(app)
 login_manager.login_view = "login"
 
+# ---- Thread-safe setup for DB, users, regions ----
+_db_initialized = False
+_db_lock = threading.Lock()
+
+@app.before_request
+def setup_db_once():
+    global _db_initialized
+    if not _db_initialized:
+        with _db_lock:
+            if not _db_initialized:
+                db.create_all()
+                # Add mainadmin/chairman if missing
+                if not User.query.filter_by(username="mainadmin").first():
+                    u = User(username="mainadmin", role="admin", password=bcrypt.generate_password_hash("admin123").decode('utf-8'), must_change_password=True)
+                    db.session.add(u)
+                if not User.query.filter_by(username="chairman").first():
+                    u = User(username="chairman", role="chairman", password=bcrypt.generate_password_hash("chairman123").decode('utf-8'), must_change_password=True)
+                    db.session.add(u)
+                db.session.commit()
+                _db_initialized = True
+
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.filter_by(id=user_id).first()
-
-@app.before_first_request
-def setup_db():
-    db.create_all()
-    # Add mainadmin/chairman if missing
-    if not User.query.filter_by(username="mainadmin").first():
-        u = User(username="mainadmin", role="admin", password=bcrypt.generate_password_hash("admin123").decode('utf-8'), must_change_password=True)
-        db.session.add(u)
-    if not User.query.filter_by(username="chairman").first():
-        u = User(username="chairman", role="chairman", password=bcrypt.generate_password_hash("chairman123").decode('utf-8'), must_change_password=True)
-        db.session.add(u)
-    db.session.commit()
 
 @app.route("/")
 @login_required
 def dashboard():
     if current_user.role == "chairman":
-        # Only show stats/summary (color-coded)
         ddg_stats = User.get_ddg_stats()
         return render_template("dashboard_chairman.html", user=current_user, ddg_stats=ddg_stats)
     elif current_user.role == "admin":
-        # Regions + BTS deployment, stats
         regions = Region.query.all()
         bts_list = User.query.filter_by(role="bts").all()
         return render_template("dashboard_admin.html", user=current_user, regions=regions, bts_list=bts_list)
@@ -273,7 +281,7 @@ def manage_officers():
         officers=officers
     )
 
-# Add more routes (manage_regions, reports, etc.) here as needed.
+# ... Add more routes for manage_regions, reports, etc.
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", debug=False)
