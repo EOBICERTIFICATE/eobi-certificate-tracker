@@ -3,7 +3,7 @@ import threading
 from datetime import datetime, timedelta
 from flask import (
     Flask, render_template, redirect, url_for, request,
-    flash, send_from_directory
+    flash, send_from_directory, Response
 )
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import (
@@ -59,7 +59,6 @@ def load_user(user_id):
 @app.route("/")
 @login_required
 def dashboard():
-    # Calculate stats in Python
     now = datetime.utcnow()
     overdue_cutoff = now - timedelta(days=14)
     all_certs = Certificate.query.all()
@@ -278,6 +277,33 @@ def add_region():
             return redirect(url_for("dashboard"))
     return render_template("add_region.html", user=current_user)
 
+@app.route("/admin/generate_report")
+@login_required
+def generate_report():
+    if current_user.role != "admin":
+        flash("Access denied!")
+        return redirect(url_for('dashboard'))
+
+    certificates = Certificate.query.all()
+    def generate():
+        data = [
+            [
+                "Tracking ID", "FIR", "Claimant Name", "CNIC", "EOBI No", "Employer", "Beat Code",
+                "Region Code", "Assigned Officer", "Status", "Created At", "Completed At", "Cross Verified"
+            ]
+        ]
+        for cert in certificates:
+            data.append([
+                cert.tracking_id, cert.fir, cert.claimant_name, cert.cnic, cert.eobi_no, cert.employer, cert.beat_code,
+                cert.region_code, cert.assigned_officer, cert.status, cert.created_at, cert.completed_at, cert.cross_verified
+            ])
+        for row in data:
+            yield ','.join(['"{}"'.format(str(x).replace('"', '""')) for x in row]) + "\n"
+    headers = {
+        "Content-Disposition": "attachment; filename=eobi_certificates_report.csv",
+        "Content-Type": "text/csv"
+    }
+    return Response(generate(), headers=headers)
 
 @app.route("/manage_officers", methods=["GET", "POST"])
 @login_required
@@ -319,7 +345,7 @@ def manage_officers():
         officers=officers
     )
 
-# ... Add more routes for manage_regions, reports, etc.
+# ... Add more routes for manage_regions, etc.
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", debug=False)
