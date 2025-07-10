@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Regions List</title>
+    <style>
+        body {font-family: Arial, sans-serif;}
+        table {margin: 20px auto; border-collapse: collapse;}
+        th, td {border: 1px solid #ccc; padding: 7px 20px;}
+        th {background: #f4f6fa;}
+    </style>
+</head>
+<body>
+    <h2>All Regions</h2>
+    <table>
+        <tr>
+            <th>Code</th>
+            <th>Name</th>
+            <th>B&C</th>
+        </tr>
+        {% for reg in regions %}
+        <tr>
+            <td>{{ reg.code }}</td>
+            <td>{{ reg.name }}</td>
+            <td>{{ reg.bc }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    <p><a href="{{ url_for('dashboard') }}">Dashboard</a></p>
+</body>
+</html>
