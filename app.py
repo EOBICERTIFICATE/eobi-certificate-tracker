@@ -1,15 +1,20 @@
 import os
 import random
-import string
 from datetime import datetime
 from flask import (
-    Flask, render_template, request, redirect, url_for, flash, send_from_directory
+    Flask, render_template, request, redirect, url_for,
+    flash, send_from_directory
 )
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import (
-    LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+    LoginManager, UserMixin, login_user, login_required,
+    logout_user, current_user
 )
 from flask_bcrypt import Bcrypt
+from dotenv import load_dotenv
+
+# --- Load environment variables ---
+load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'super_secret_key')
@@ -26,9 +31,9 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-# --- Region Coding ---
+# --- Full Region Coding/B&C as per your list ---
 REGIONS_BC_MAP = [
-    # B&C-1
+    # B&C -1
     {"code": "6900", "name": "Hub", "bc": "B&C-1"},
     {"code": "6100", "name": "Quetta", "bc": "B&C-1"},
     {"code": "100", "name": "Nazimabad", "bc": "B&C-1"},
@@ -42,7 +47,8 @@ REGIONS_BC_MAP = [
     {"code": "1100", "name": "Hyderabad", "bc": "B&C-1"},
     {"code": "1600", "name": "Sukkur", "bc": "B&C-1"},
     {"code": "1700", "name": "Larkana", "bc": "B&C-1"},
-    # B&C-2
+
+    # B&C -2
     {"code": "1900", "name": "Rahim Yar Khan", "bc": "B&C-2"},
     {"code": "2000", "name": "Muzaffargarh", "bc": "B&C-2"},
     {"code": "2100", "name": "Multan", "bc": "B&C-2"},
@@ -57,7 +63,8 @@ REGIONS_BC_MAP = [
     {"code": "4100", "name": "Gujranwala", "bc": "B&C-2"},
     {"code": "4200", "name": "Gujrat", "bc": "B&C-2"},
     {"code": "4300", "name": "Sialkot", "bc": "B&C-2"},
-    # B&C-1
+
+    # B&C -1 again
     {"code": "2500", "name": "Faisalabad Central", "bc": "B&C-1"},
     {"code": "2600", "name": "Faisalabad South", "bc": "B&C-1"},
     {"code": "2700", "name": "Faisalabad North", "bc": "B&C-1"},
@@ -103,11 +110,11 @@ class Certificate(db.Model):
     completed_at = db.Column(db.DateTime, nullable=True)
     file_name = db.Column(db.String(128), nullable=True)
 
-# --- INITIAL DATA LOAD ---
+# --- DB INIT ---
 @app.before_first_request
 def setup():
     db.create_all()
-    # Create mainadmin/chairman if not exist
+    # Default admin/chairman
     if not User.query.filter_by(username="mainadmin").first():
         pw = bcrypt.generate_password_hash("admin123").decode("utf-8")
         user = User(username="mainadmin", password=pw, name="Main Admin", role="admin")
@@ -116,7 +123,7 @@ def setup():
         pw = bcrypt.generate_password_hash("chairman123").decode("utf-8")
         user = User(username="chairman", password=pw, name="Chairman", role="chairman")
         db.session.add(user)
-    # Load regions if not exists
+    # Add all regions (idempotent)
     for reg in REGIONS_BC_MAP:
         if not Region.query.filter_by(code=reg["code"]).first():
             db.session.add(Region(code=reg["code"], name=reg["name"], bc=reg["bc"]))
@@ -132,47 +139,27 @@ def load_user(username):
 @login_required
 def dashboard():
     user = current_user
-    # Get all certificates for this user/region/role
     if user.role in ["admin", "chairman"]:
         certs = Certificate.query.all()
     else:
         certs = Certificate.query.filter_by(region_code=user.region_code).all()
-    # Calculate stats
     pending = [c for c in certs if c.status == "pending"]
     completed = [c for c in certs if c.status == "completed"]
     for c in pending:
         c.days_pending = (datetime.utcnow() - c.created_at).days
     for c in completed:
         c.days_pending = 0
-    return render_template(
-        "dashboard.html",
-        user=user,
-        certs=certs,
-        pending=pending,
-        completed=completed
-    )
+    return render_template("dashboard.html",
+                           user=user,
+                           certs=certs,
+                           pending=pending,
+                           completed=completed)
 
 @app.route("/regions")
 @login_required
 def regions():
-    regions = Region.query.all()
+    regions = Region.query.order_by(Region.code).all()
     return render_template("regions.html", regions=regions)
-
-@app.route("/add_region", methods=["GET", "POST"])
-@login_required
-def add_region():
-    if request.method == "POST":
-        code = request.form["code"]
-        name = request.form["name"]
-        bc = request.form["bc"]
-        if not Region.query.filter_by(code=code).first():
-            db.session.add(Region(code=code, name=name, bc=bc))
-            db.session.commit()
-            flash("Region added successfully.")
-        else:
-            flash("Region code already exists.")
-        return redirect(url_for("regions"))
-    return render_template("add_region.html")
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
