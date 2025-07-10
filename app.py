@@ -171,9 +171,9 @@ Please change your password after login."""
 def load_user(username):
     return User.query.filter_by(username=username).first()
 
-# --- INITIALIZATION ---
+# --- INITIALIZATION (Flask 3.x uses @app.before_serving) ---
 
-@app.before_first_request
+@app.before_serving
 def setup():
     db.create_all()
     for reg in REGIONS_BC_MAP:
