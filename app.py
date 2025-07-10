@@ -1,6 +1,6 @@
 import os
 import threading
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask import (
     Flask, render_template, redirect, url_for, request,
     flash, send_from_directory
@@ -59,12 +59,20 @@ def load_user(user_id):
 @app.route("/")
 @login_required
 def dashboard():
-    # Add stats for summary dashboards
+    # Calculate stats in Python
+    now = datetime.utcnow()
+    overdue_cutoff = now - timedelta(days=14)
+    all_certs = Certificate.query.all()
+    total = len(all_certs)
+    pending = sum(1 for c in all_certs if c.status == "pending")
+    completed = sum(1 for c in all_certs if c.status == "completed")
+    overdue = sum(1 for c in all_certs if c.status == "pending" and c.created_at < overdue_cutoff)
+
     stats = {
-        "total": Certificate.query.count(),
-        "pending": Certificate.query.filter_by(status="pending").count(),
-        "completed": Certificate.query.filter_by(status="completed").count(),
-        "overdue": Certificate.query.filter(Certificate.status=="pending", (datetime.utcnow() - Certificate.created_at).days > 14).count()
+        "total": total,
+        "pending": pending,
+        "completed": completed,
+        "overdue": overdue
     }
 
     if current_user.role == "chairman":
@@ -76,21 +84,21 @@ def dashboard():
         return render_template("dashboard_admin.html", user=current_user, regions=regions, bts_list=bts_list, stats=stats)
     elif current_user.role == "ddg":
         rh_stats = User.get_rh_stats(current_user)
-        return render_template("dashboard_ddg.html", user=current_user, rh_stats=rh_stats)
+        return render_template("dashboard_ddg.html", user=current_user, rh_stats=rh_stats, stats=stats)
     elif current_user.role == "rh":
         bts_stats = User.get_bts_stats(current_user)
-        return render_template("dashboard_rh.html", user=current_user, bts_stats=bts_stats)
+        return render_template("dashboard_rh.html", user=current_user, bts_stats=bts_stats, stats=stats)
     elif current_user.role == "drh":
         beat_stats = User.get_beat_stats(current_user)
-        return render_template("dashboard_drh.html", user=current_user, beat_stats=beat_stats)
+        return render_template("dashboard_drh.html", user=current_user, beat_stats=beat_stats, stats=stats)
     elif current_user.role == "bts":
         certs = Certificate.query.filter_by(region_code=current_user.region_code).all()
         bts_email_settings = assign_bts_email_settings(current_user.region_code)
-        return render_template("dashboard_bts.html", user=current_user, certs=certs, bts_email_settings=bts_email_settings)
+        return render_template("dashboard_bts.html", user=current_user, certs=certs, bts_email_settings=bts_email_settings, stats=stats)
     elif current_user.role == "officer":
         certs = Certificate.query.filter_by(assigned_officer=current_user.username).all()
         beat_email_settings = assign_officer_email_settings(current_user.username)
-        return render_template("dashboard_beat.html", user=current_user, certs=certs, beat_email_settings=beat_email_settings)
+        return render_template("dashboard_beat.html", user=current_user, certs=certs, beat_email_settings=beat_email_settings, stats=stats)
     else:
         return redirect(url_for('login'))
 
