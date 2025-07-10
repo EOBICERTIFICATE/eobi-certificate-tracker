@@ -1,12 +1,14 @@
-Flask>=2.2
-Werkzeug>=2.2
-Flask-Mail
-python-dotenv
-Flask_SQLAlchemy
-Flask-Login
-Flask-Bcrypt
-matplotlib
-reportlab
-google-api-python-client
-google-auth-httplib2
-google-auth-oauthlib
+Flask>=3.0.0
+Flask-Login>=0.7.0
+Flask-Mail>=0.9.1
+Flask-Bcrypt>=1.0.1
+Flask-SQLAlchemy>=3.0.0
+python-dotenv>=1.0.0
+Werkzeug>=3.0.0
+google-api-python-client>=2.124.0
+google-auth>=2.28.0
+google-auth-oauthlib>=1.2.0
+google-auth-httplib2>=0.2.0
+# Optionally for concurrency/threading if needed
+gunicorn>=21.2.0
+# Render will use gunicorn if specified, or you can run with Flask's built-in server.
