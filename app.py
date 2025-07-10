@@ -167,23 +167,23 @@ def setup():
     global setup_done
     if not setup_done:
         db.create_all()
-        # Add region mapping on first run
+        # --- Add region mapping on first run ---
         for reg in REGIONS_BC_MAP:
             if not Region.query.filter_by(code=reg['code']).first():
                 region = Region(code=reg['code'], name=reg['name'], bc=reg['bc'])
                 db.session.add(region)
         db.session.commit()
-        # Add default chairman/admin if not exists
-        with db.session.no_autoflush:
-            if not User.query.filter_by(username='mainadmin').first():
-                pw = bcrypt.generate_password_hash('admin123').decode('utf-8')
-                user = User(username='mainadmin', password=pw, role='admin', name='Main Admin', must_change_password=True)
-                db.session.add(user)
-            if not User.query.filter_by(username='chairman').first():
-                pw = bcrypt.generate_password_hash('chairman123').decode('utf-8')
-                user = User(username='chairman', password=pw, role='chairman', name='Chairman', must_change_password=True)
-                db.session.add(user)
-            db.session.commit()
+
+        # --- Add default chairman/admin if not exists ---
+        if not User.query.filter_by(username='mainadmin').first():
+            pw = bcrypt.generate_password_hash('admin123').decode('utf-8')
+            user = User(username='mainadmin', password=pw, role='admin', name='Main Admin', must_change_password=True)
+            db.session.add(user)
+        if not User.query.filter_by(username='chairman').first():
+            pw = bcrypt.generate_password_hash('chairman123').decode('utf-8')
+            user = User(username='chairman', password=pw, role='chairman', name='Chairman', must_change_password=True)
+            db.session.add(user)
+        db.session.commit()
         setup_done = True
 
 # --- ROUTES ---
@@ -246,7 +246,8 @@ def change_password():
             return redirect(url_for('dashboard'))
     return render_template("change_password.html")
 
-# ... (add your additional routes and features here) ...
+# --- ADD YOUR OTHER ROUTES HERE ---
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(debug=False, host="0.0.0.0", port=port)
