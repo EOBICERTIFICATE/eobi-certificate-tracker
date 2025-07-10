@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}Beat Officer Dashboard | EOBI Certificate Tracker{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h2 style="text-align:center; margin-bottom:24px;">Beat Officer Dashboard ({{ current_user.name }} – {{ current_user.username }})</h2>
+    <div class="section-title">Your Email Settings</div>
+    <div class="integration-settings" style="background:#e8eefa;padding:16px 28px; border-radius:8px; margin-bottom:28px;">
+        <form method="POST" action="{{ url_for('setup_beat_email') }}">
+            <label><b>Your Official Email:</b></label>
+            <input type="email" name="email" value="{{ beat_settings.email or '' }}" required style="width:330px;margin-right:10px;">
+            <label><b>Email App Password:</b></label>
+            <input type="password" name="app_password" value="{{ beat_settings.app_password or '' }}" required style="width:200px;">
+            <button type="submit" class="btn">Update</button>
+        </form>
+        {% if beat_settings.last_updated %}
+            <div style="color: #469318; margin-top:8px;">
+                Last updated: {{ beat_settings.last_updated.strftime('%Y-%m-%d %H:%M') }}
+            </div>
+        {% endif %}
+    </div>
+
+    <div class="stats">
+        <div class="stat-box blue">
+            <div class="stat-label">Total Assigned</div>
+            <div class="stat-value">{{ certs|length }}</div>
+        </div>
+        <div class="stat-box yellow">
+            <div class="stat-label">Pending</div>
+            <div class="stat-value">{{ pending|length }}</div>
+        </div>
+        <div class="stat-box green">
+            <div class="stat-label">Completed</div>
+            <div class="stat-value">{{ completed|length }}</div>
+        </div>
+        <div class="stat-box red">
+            <div class="stat-label">Overdue (15+ days)</div>
+            <div class="stat-value">{{ overdue|length }}</div>
+        </div>
+    </div>
+
+    <div style="margin-top:24px;">
+        <a href="{{ url_for('generate_report_beat', beat_code=current_user.beat_code) }}" class="btn">Download My Report (CSV)</a>
+    </div>
+
+    <div style="margin-top:35px;">
+        <div class="section-title">Assigned Certificates</div>
+        <table>
+            <tr>
+                <th>Tracking ID</th>
+                <th>Claimant Name</th>
+                <th>CNIC</th>
+                <th>Status</th>
+                <th>Days Pending</th>
+                <th>File</th>
+                <th>Reply / Report</th>
+                <th>Custom Email</th>
+            </tr>
+            {% for c in certs %}
+            <tr class="{% if c.days_pending >= 15 and c.status == 'pending' %}danger{% elif c.status == 'pending' %}pending{% else %}ok{% endif %}">
+                <td>{{ c.tracking_id }}</td>
+                <td>{{ c.claimant_name }}</td>
+                <td>{{ c.cnic }}</td>
+                <td>{{ c.status|capitalize }}</td>
+                <td>{{ c.days_pending }}</td>
+                <td>
+                    {% if c.file_name %}
+                        <a href="{{ url_for('uploaded_file', filename=c.file_name) }}" target="_blank">View</a>
+                    {% else %} - {% endif %}
+                </td>
+                <td>
+                    {% if c.status == 'pending' %}
+                        <a href="{{ url_for('reply_certificate', cert_id=c.id) }}" class="btn-small">Reply / Upload Report</a>
+                    {% elif c.status == 'completed' %}
+                        <span style="color: #3da26b;">Done</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <a href="{{ url_for('send_custom_email', cert_id=c.id) }}" class="btn-small">Send Email</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+</div>
+{% endblock %}
