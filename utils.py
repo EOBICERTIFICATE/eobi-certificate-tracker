@@ -14,7 +14,10 @@ from models import db, User, Certificate, Region
 # === EMAIL UTILS ===
 
 def send_email_smtp(subject, recipients, body, mail_user, mail_pass):
-    """Send email via SMTP with given credentials."""
+    """
+    Send email via SMTP with provided credentials.
+    Handles single and multiple recipients.
+    """
     try:
         smtp_server = "smtp.gmail.com"
         smtp_port = 587
@@ -34,8 +37,11 @@ def send_email_smtp(subject, recipients, body, mail_user, mail_pass):
         print(f"[EMAIL ERROR] {e}")
         return False
 
-def send_certificate_assignment_email(officer_email, officer_name, certificate, password=None):
-    """Send assignment email (new or re-assigned) to officer."""
+def send_certificate_assignment_email(officer_email, officer_name, certificate, password=None, sender_email=None, sender_pass=None):
+    """
+    Send a certificate assignment (or re-assignment) email to a beat officer.
+    Optionally includes login credentials for new officers.
+    """
     subject = f"New Certificate Assigned (Tracking ID: {certificate.tracking_id})"
     body = f"""Dear {officer_name},
 
@@ -47,22 +53,21 @@ CNIC: {certificate.cnic}
 FIR: {certificate.fir}
 EOBI #: {certificate.eobi_no}
 Employer: {certificate.employer}
-
 """
     if password:
-        body += f"Your portal login: {officer_email}\nTemporary Password: {password}\n\n"
+        body += f"\nYour portal login: {officer_email}\nTemporary Password: {password}\n"
 
-    body += "Please login to the EOBI Certificate Tracker to view details and respond.\n"
-    return send_email_smtp(
-        subject,
-        officer_email,
-        body,
-        os.environ.get("MAIL_USERNAME"),
-        os.environ.get("MAIL_PASSWORD")
-    )
+    body += "\nPlease login to the EOBI Certificate Tracker to view details and respond."
 
-def send_reminder_email(officer_email, certificate, reminder_level=1):
-    """Send reminder to officer, escalate at 3rd."""
+    # Use specific BTS sender if set, else fallback to env
+    mail_user = sender_email or os.environ.get("MAIL_USERNAME")
+    mail_pass = sender_pass or os.environ.get("MAIL_PASSWORD")
+    return send_email_smtp(subject, officer_email, body, mail_user, mail_pass)
+
+def send_reminder_email(officer_email, certificate, reminder_level=1, cc_emails=None, sender_email=None, sender_pass=None):
+    """
+    Send a reminder email to a beat officer. Escalates at 3rd reminder.
+    """
     levels = {
         1: "[REMINDER] Certificate Pending 15 Days",
         2: "[REMINDER] Certificate Pending 25 Days",
@@ -73,32 +78,25 @@ def send_reminder_email(officer_email, certificate, reminder_level=1):
 
 Tracking ID: {certificate.tracking_id}
 Claimant Name: {certificate.claimant_name}
-Days Pending: {certificate.get_pending_days()}
+Days Pending: {certificate.get_pending_days() if hasattr(certificate, 'get_pending_days') else (datetime.utcnow()-certificate.created_at).days}
 
 Please complete the verification and upload required documents as soon as possible.
 """
-    # Optionally escalate (CC to DDG/Chairman)
-    # (In actual app: query DDG, Chairman emails as required)
-    return send_email_smtp(
-        subject,
-        officer_email,
-        body,
-        os.environ.get("MAIL_USERNAME"),
-        os.environ.get("MAIL_PASSWORD")
-    )
+    # Add escalation recipients for 3rd reminder
+    recipients = [officer_email]
+    if reminder_level == 3 and cc_emails:
+        recipients += cc_emails
+
+    mail_user = sender_email or os.environ.get("MAIL_USERNAME")
+    mail_pass = sender_pass or os.environ.get("MAIL_PASSWORD")
+    return send_email_smtp(subject, recipients, body, mail_user, mail_pass)
 
 # === GOOGLE DRIVE UTILS ===
 
 def upload_to_drive(local_path, filename, drive_folder_id, service_json_path):
     """
-    Uploads a file to Google Drive folder using service account JSON.
-    Args:
-        local_path: Path to the file on server
-        filename: Filename to save as
-        drive_folder_id: Google Drive folder ID to upload into
-        service_json_path: Path to your service account credentials .json
-    Returns:
-        Google Drive file id or None
+    Upload a file to Google Drive using a service account JSON.
+    Returns the Google Drive file ID or None on failure.
     """
     from googleapiclient.discovery import build
     from googleapiclient.http import MediaFileUpload
@@ -110,7 +108,6 @@ def upload_to_drive(local_path, filename, drive_folder_id, service_json_path):
             service_json_path, scopes=SCOPES
         )
         drive_service = build('drive', 'v3', credentials=creds)
-
         file_metadata = {
             'name': filename,
             'parents': [drive_folder_id]
@@ -129,35 +126,38 @@ def upload_to_drive(local_path, filename, drive_folder_id, service_json_path):
 # === TRACKING ID ===
 
 def generate_tracking_id(cnic, eobi_no, region, beat):
-    import random, string
     rand = ''.join(random.choices(string.digits, k=3))
     return f"{region}-{beat}-{cnic[-4:]}-{eobi_no[-4:]}-{rand}"
 
 # === PASSWORD ===
 
 def random_password(length=8):
-    import random, string
     return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
 
 # === REMINDER SCHEDULER ===
 
-def schedule_certificate_reminders(certificate_id, officer_email):
+def schedule_certificate_reminders(certificate_id, officer_email, sender_email=None, sender_pass=None):
     """
-    Schedule reminders at 15, 25, 45 days after certificate creation.
+    Schedule reminders for certificate verification at 15, 25, 45 days.
+    Use Celery, APScheduler, or other job queue in production.
     """
-    # This is just a basic illustration.
-    # In production, use a job scheduler like Celery/Redis.
     def reminder_job(reminder_level):
         certificate = Certificate.query.get(certificate_id)
         if not certificate or certificate.status == "completed":
             return
-        send_reminder_email(officer_email, certificate, reminder_level)
-    # 15, 25, 45 days
+        send_reminder_email(
+            officer_email,
+            certificate,
+            reminder_level=reminder_level,
+            sender_email=sender_email,
+            sender_pass=sender_pass
+        )
+    # Schedule (use cron/job queue in production)
     threading.Timer(15*24*60*60, lambda: reminder_job(1)).start()
     threading.Timer(25*24*60*60, lambda: reminder_job(2)).start()
     threading.Timer(45*24*60*60, lambda: reminder_job(3)).start()
 
-# === COLOR CODING ===
+# === COLOR CODING (for dashboard tables) ===
 
 def get_row_color(days_pending):
     if days_pending >= 45:
@@ -172,7 +172,7 @@ def get_row_color(days_pending):
 # === OFFICER MANAGEMENT ===
 
 def create_officer(username, email, name, password=None, region_code=None, beat_code=None):
-    """Create a new beat officer if not exists, returns User object."""
+    """Create new officer, or return existing."""
     from app import bcrypt  # Import here to avoid circular import
     user = User.query.filter_by(username=username).first()
     if user:
@@ -192,13 +192,15 @@ def create_officer(username, email, name, password=None, region_code=None, beat_
     )
     db.session.add(officer)
     db.session.commit()
-    # Optionally: send email with credentials here
+    # Email credentials if desired
     return officer, True
 
 # === HISTORY HELPERS ===
 
 def add_certificate_history(certificate, action, user):
-    import json
+    """
+    Add an action to the certificate's history log.
+    """
     hist = []
     if certificate.history:
         try:
@@ -212,5 +214,3 @@ def add_certificate_history(certificate, action, user):
     })
     certificate.history = json.dumps(hist)
     db.session.commit()
-
-# === ANY MORE HELPERS YOU NEED HERE... ===
