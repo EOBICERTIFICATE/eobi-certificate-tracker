@@ -36,7 +36,7 @@
             <th>Actions</th>
         </tr>
         {% for region in regions %}
-        <tr class="{% if region.overdue > 0 %}danger{% elif region.pending > 0 %}pending{% else %}ok{% endif %}">
+        <tr class="{% if region_stats[region.code].overdue > 0 %}danger{% elif region_stats[region.code].pending > 0 %}pending{% else %}ok{% endif %}">
             <td>{{ region.code }}</td>
             <td>{{ region.name }}</td>
             <td>{% if region.bts_incharge %}{{ region.bts_incharge }}{% else %}<span style="color:grey;">Not Assigned</span>{% endif %}</td>
@@ -49,9 +49,9 @@
                 {% endif %}
             </td>
             <td>
-                {% if region.overdue > 0 %}
+                {% if region_stats[region.code].overdue > 0 %}
                     <span style="color:#d90000; font-weight:bold;">Overdue</span>
-                {% elif region.pending > 0 %}
+                {% elif region_stats[region.code].pending > 0 %}
                     <span style="color:#eaba00;">Pending</span>
                 {% else %}
                     <span style="color:#39a316;">OK</span>
