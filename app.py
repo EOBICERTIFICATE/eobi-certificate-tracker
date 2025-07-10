@@ -171,7 +171,7 @@ Please change your password after login."""
 def load_user(username):
     return User.query.filter_by(username=username).first()
 
-# --- INITIALIZATION (Flask 3.x uses @app.before_serving) ---
+# --- INITIALIZATION (Flask 3.x uses @app.before_first_request) ---
 
 @app.before_first_request
 def setup():
