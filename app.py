@@ -173,7 +173,7 @@ def load_user(username):
 
 # --- INITIALIZATION (Flask 3.x uses @app.before_serving) ---
 
-@app.before_serving
+@app.before_first_request
 def setup():
     db.create_all()
     for reg in REGIONS_BC_MAP:
