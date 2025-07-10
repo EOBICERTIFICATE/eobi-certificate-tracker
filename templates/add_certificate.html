@@ -1,41 +1,59 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Add Certificate | EOBI Tracker</title>
-    <style>
-        body {font-family: 'Segoe UI', Arial, sans-serif; background: #f6f7fb;}
-        .box {background: #fff; width: 470px; margin: 40px auto; padding: 28px 32px; border-radius: 12px; box-shadow: 0 2px 16px #dde4ee;}
-        input, select {width: 100%; padding: 8px; border-radius: 7px; margin-bottom: 12px;}
-        button {width:100%;padding:10px; border-radius: 7px;background:#173c73;color:#fff; border:none;}
-    </style>
-</head>
-<body>
-    <div class="box">
-        <h2>Add Certificate</h2>
-        {% with messages = get_flashed_messages() %}
-          {% if messages %}
-            <div class="msg" style="color:green;">{{ messages[0] }}</div>
-          {% endif %}
-        {% endwith %}
-        <form method="POST" enctype="multipart/form-data">
-            <input type="text" name="fir" placeholder="FIR #" required>
-            <input type="text" name="claimant_name" placeholder="Claimant Name" required>
-            <input type="text" name="cnic" placeholder="CNIC" required>
-            <input type="text" name="eobi_no" placeholder="EOBI #" required>
-            <input type="text" name="employer" placeholder="Employer" required>
-            <input type="text" name="beat_code" placeholder="Beat Code (A-Z)" required>
-            <label>Assign Officer:</label>
-            <select name="assigned_officer">
-                {% for officer in officer_list %}
-                    <option value="{{ officer }}">{{ officer }}</option>
-                {% endfor %}
-            </select>
-            <label><input type="checkbox" name="cross_verified"> Mark as Cross-Verified</label><br>
-            <label>Certificate File (PDF/JPG/PNG):</label>
-            <input type="file" name="certificate_file" accept=".pdf,.jpg,.jpeg,.png">
-            <button type="submit">Add Certificate</button>
-        </form>
-    </div>
-</body>
-</html>
+{% extends "base.html" %}
+
+{% block title %}Add Certificate | EOBI Certificate Tracker{% endblock %}
+
+{% block content %}
+<div class="box" style="max-width:500px;margin:auto;">
+    <h2>Add Certificate</h2>
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <div class="msg" style="color:green;text-align:center;">{{ messages[0] }}</div>
+      {% endif %}
+    {% endwith %}
+    <form method="POST" enctype="multipart/form-data" autocomplete="off">
+        <label for="fir">FIR #</label>
+        <input type="text" name="fir" id="fir" required placeholder="FIR #" maxlength="32">
+
+        <label for="claimant_name">Claimant Name</label>
+        <input type="text" name="claimant_name" id="claimant_name" required placeholder="Claimant Name" maxlength="64">
+
+        <label for="cnic">CNIC</label>
+        <input type="text" name="cnic" id="cnic" required placeholder="CNIC" maxlength="15" pattern="[\d\-]{13,15}">
+
+        <label for="eobi_no">EOBI #</label>
+        <input type="text" name="eobi_no" id="eobi_no" required placeholder="EOBI #" maxlength="15">
+
+        <label for="employer">Employer</label>
+        <input type="text" name="employer" id="employer" required placeholder="Employer Name" maxlength="128">
+
+        <label for="beat_code">Beat Code (A-Z)</label>
+        <input type="text" name="beat_code" id="beat_code" required placeholder="Beat Code" maxlength="8">
+
+        <label for="region_code">Region</label>
+        <select name="region_code" id="region_code" required>
+            <option value="">Select Region</option>
+            {% for region in regions %}
+                <option value="{{ region.code }}">{{ region.code }} - {{ region.name }}</option>
+            {% endfor %}
+        </select>
+
+        <label for="assigned_officer">Assign Officer</label>
+        <select name="assigned_officer" id="assigned_officer" required>
+            <option value="">Select Officer</option>
+            {% for officer in officers %}
+                <option value="{{ officer.username }}">{{ officer.name }} ({{ officer.username }})</option>
+            {% endfor %}
+        </select>
+
+        <div style="margin: 8px 0;">
+            <input type="checkbox" name="cross_verified" id="cross_verified">
+            <label for="cross_verified">Mark as Cross-Verified</label>
+        </div>
+
+        <label for="certificate_file">Certificate File (PDF/JPG/PNG)</label>
+        <input type="file" name="certificate_file" id="certificate_file" accept=".pdf,.jpg,.jpeg,.png">
+
+        <button type="submit">Add Certificate</button>
+    </form>
+</div>
+{% endblock %}
