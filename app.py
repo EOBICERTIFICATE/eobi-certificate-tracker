@@ -32,7 +32,6 @@ bcrypt = Bcrypt(app)
 login_manager = LoginManager(app)
 login_manager.login_view = "login"
 
-# ---- Thread-safe setup for DB, users, regions ----
 _db_initialized = False
 _db_lock = threading.Lock()
 
@@ -60,13 +59,21 @@ def load_user(user_id):
 @app.route("/")
 @login_required
 def dashboard():
+    # Add stats for summary dashboards
+    stats = {
+        "total": Certificate.query.count(),
+        "pending": Certificate.query.filter_by(status="pending").count(),
+        "completed": Certificate.query.filter_by(status="completed").count(),
+        "overdue": Certificate.query.filter(Certificate.status=="pending", (datetime.utcnow() - Certificate.created_at).days > 14).count()
+    }
+
     if current_user.role == "chairman":
         ddg_stats = User.get_ddg_stats()
-        return render_template("dashboard_chairman.html", user=current_user, ddg_stats=ddg_stats)
+        return render_template("dashboard_chairman.html", user=current_user, ddg_stats=ddg_stats, stats=stats)
     elif current_user.role == "admin":
         regions = Region.query.all()
         bts_list = User.query.filter_by(role="bts").all()
-        return render_template("dashboard_admin.html", user=current_user, regions=regions, bts_list=bts_list)
+        return render_template("dashboard_admin.html", user=current_user, regions=regions, bts_list=bts_list, stats=stats)
     elif current_user.role == "ddg":
         rh_stats = User.get_rh_stats(current_user)
         return render_template("dashboard_ddg.html", user=current_user, rh_stats=rh_stats)
