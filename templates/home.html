@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>EOBI System</title>
+    <style>
+        body { font-family: Arial; }
+        .dashboard { margin: 30px auto; padding: 20px; background: #f4f6fa; width: 400px; border-radius: 10px; }
+        .nav { margin-bottom: 12px; }
+        a { color: #3578e5; text-decoration: none; margin-right: 15px; }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+    <h1>EOBI System</h1>
+    {% if username %}
+        <div class="nav">
+            <b>{{ username }}</b> ({{ role }}) | <a href="{{ url_for('logout') }}">Logout</a>
+        </div>
+        {% if role == 'admin' %}
+            <a href="{{ url_for('add_certificate') }}">Add Certificate</a>
+            <a href="{{ url_for('certificates') }}">View Certificates</a>
+            <a href="{{ url_for('manage_officers') }}">Manage Officers</a>
+            <a href="{{ url_for('manage_regions') }}">Manage Regions</a>
+        {% elif role == 'officer' %}
+            <a href="{{ url_for('certificates') }}">View My Certificates</a>
+            <a href="{{ url_for('add_certificate') }}">Add Certificate</a>
+        {% endif %}
+        <p><b>Region Code:</b> {{ region_code }}</p>
+    {% else %}
+        <a href="{{ url_for('login') }}">Login</a>
+        <p>Please login to access your dashboard.</p>
+    {% endif %}
+    </div>
+</body>
+</html>

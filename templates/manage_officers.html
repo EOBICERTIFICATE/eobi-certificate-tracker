@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Manage Officers | EOBI Tracker</title>
+    <style>
+        body {font-family: 'Segoe UI', Arial, sans-serif; background: #f6f7fb;}
+        .box {background: #fff; width: 480px; margin: 40px auto; padding: 28px 32px; border-radius: 12px; box-shadow: 0 2px 16px #dde4ee;}
+        input, button {padding: 8px; border-radius: 7px;}
+        button {background:#173c73; color:#fff; border:none;}
+        table {width: 100%; border-collapse: collapse; margin-top: 16px;}
+        th, td {border-bottom: 1px solid #eee; padding: 8px; text-align:center;}
+        th {background: #f1f4fb;}
+    </style>
+</head>
+<body>
+    <div class="box">
+        <h2>Add Officer</h2>
+        {% with messages = get_flashed_messages() %}
+          {% if messages %}
+            <div class="msg" style="color:green;">{{ messages[0] }}</div>
+          {% endif %}
+        {% endwith %}
+        <form method="POST">
+            <input type="text" name="personal_no" placeholder="6-digit Personal No." maxlength="6" required>
+            <input type="text" name="name" placeholder="Name" required>
+            <input type="email" name="email" placeholder="Officer Email" required>
+            <button type="submit">Add Officer</button>
+        </form>
+        <h3>Region Officers</h3>
+        <table>
+            <tr><th>Name</th><th>Personal No</th></tr>
+            {% for o in officers %}
+                <tr><td>{{ o.name }}</td><td>{{ o.personal_no }}</td></tr>
+            {% endfor %}
+        </table>
+    </div>
+</body>
+</html>

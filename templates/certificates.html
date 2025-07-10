@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Certificates | EOBI Tracker</title>
+    <style>
+        body {font-family: 'Segoe UI', Arial, sans-serif; background: #f6f7fb;}
+        .box {background: #fff; width: 94%; margin: 40px auto; padding: 28px 32px; border-radius: 12px; box-shadow: 0 2px 16px #dde4ee;}
+        table {width: 100%; border-collapse: collapse; margin-top: 10px;}
+        th, td {padding: 8px; border-bottom: 1px solid #eee; text-align: center;}
+        th {background: #f1f4fb;}
+    </style>
+</head>
+<body>
+    <div class="box">
+        <h2>All Certificates</h2>
+        <table>
+            <tr>
+                <th>Tracking ID</th>
+                <th>Claimant Name</th>
+                <th>CNIC</th>
+                <th>EOBI #</th>
+                <th>Officer</th>
+                <th>Beat</th>
+                <th>Region</th>
+                <th>Status</th>
+                <th>Days Pending</th>
+                <th>File</th>
+            </tr>
+            {% for c in certificates %}
+            <tr>
+                <td>{{ c.tracking_id }}</td>
+                <td>{{ c.claimant_name }}</td>
+                <td>{{ c.cnic }}</td>
+                <td>{{ c.eobi_no }}</td>
+                <td>{{ c.assigned_officer }}</td>
+                <td>{{ c.beat_code }}</td>
+                <td>{{ c.region_code }}</td>
+                <td>{{ c.status|capitalize }}</td>
+                <td>{{ c.days_pending }}</td>
+                <td>
+                    {% if c.file_name %}
+                        <a href="{{ url_for('uploaded_file', filename=c.file_name) }}" target="_blank">View</a>
+                    {% else %} - {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+</body>
+</html>

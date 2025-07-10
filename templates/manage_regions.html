@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Manage Regions | EOBI Tracker</title>
+    <style>
+        body {font-family: 'Segoe UI', Arial, sans-serif; background: #f6f7fb;}
+        .box {background: #fff; width: 520px; margin: 40px auto; padding: 28px 36px; border-radius: 12px; box-shadow: 0 2px 16px #dde4ee;}
+        table {width: 100%; border-collapse: collapse; margin-top: 18px;}
+        th, td {border-bottom: 1px solid #eee; padding: 8px; text-align:center;}
+        th {background: #f1f4fb;}
+        input, button {padding: 8px; border-radius: 7px;}
+        button {background:#173c73; color:#fff; border:none;}
+    </style>
+</head>
+<body>
+    <div class="box">
+        <h2>Add New Region</h2>
+        {% with messages = get_flashed_messages() %}
+          {% if messages %}
+            <div class="msg" style="color:green;">{{ messages[0] }}</div>
+          {% endif %}
+        {% endwith %}
+        <form method="POST">
+            <input type="text" name="region_code" placeholder="Region Code" required>
+            <input type="text" name="region_name" placeholder="Region Name" required>
+            <input type="text" name="bts_email" placeholder="BTS Incharge Email" required>
+            <button type="submit">Add Region</button>
+        </form>
+        <h3>Current Regions</h3>
+        <table>
+            <tr><th>Code</th><th>Name</th><th>BTS Username</th></tr>
+            {% for r in regions %}
+                <tr><td>{{ r.code }}</td><td>{{ r.name }}</td><td>{{ r.bts_username }}</td></tr>
+            {% endfor %}
+        </table>
+    </div>
+</body>
+</html>
