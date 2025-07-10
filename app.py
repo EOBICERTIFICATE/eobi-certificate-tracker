@@ -256,6 +256,29 @@ def run_reminders():
     flash("Reminders sent!")
     return redirect(url_for("dashboard"))
 
+@app.route("/admin/add_region", methods=["GET", "POST"])
+@login_required
+def add_region():
+    if current_user.role != "admin":
+        flash("Access denied.")
+        return redirect(url_for("dashboard"))
+    if request.method == "POST":
+        code = request.form.get('code')
+        name = request.form.get('name')
+        bc = request.form.get('bc')
+        if not (code and name):
+            flash("Code and name are required.")
+        elif Region.query.filter_by(code=code).first():
+            flash("Region code already exists.")
+        else:
+            region = Region(code=code, name=name, bc=bc)
+            db.session.add(region)
+            db.session.commit()
+            flash("Region added successfully!")
+            return redirect(url_for("dashboard"))
+    return render_template("add_region.html", user=current_user)
+
+
 @app.route("/manage_officers", methods=["GET", "POST"])
 @login_required
 def manage_officers():
