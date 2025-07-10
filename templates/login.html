@@ -4,9 +4,8 @@
     <meta charset="UTF-8">
     <title>EOBI Login</title>
     <style>
-        body {font-family: 'Segoe UI', Arial, sans-serif; background: #f6f7fb;}
+        body {font-family: Arial, sans-serif; background: #f6f7fb;}
         .login-container {background: #fff; width: 400px; margin: 80px auto; padding: 32px 40px; border-radius: 10px; box-shadow: 0 2px 16px #dde4ee;}
-        .logo {display: block; margin: 0 auto 12px auto;}
         h2 {text-align: center;}
         label {font-size: 16px;}
         input[type=text], input[type=password] {width: 100%; padding: 10px; border-radius: 6px; border:1px solid #ccc; margin-bottom: 18px;}
@@ -16,7 +15,6 @@
 </head>
 <body>
     <div class="login-container">
-        <img class="logo" src="{{ url_for('static', filename='eobi_logo.png') }}" height="56" alt="EOBI Logo">
         <h2>Login to EOBI Tracker</h2>
         {% with messages = get_flashed_messages() %}
           {% if messages %}
@@ -24,7 +22,7 @@
           {% endif %}
         {% endwith %}
         <form method="POST" action="{{ url_for('login') }}">
-            <label>Username / Personal No.</label>
+            <label>Username</label>
             <input type="text" name="username" required>
             <label>Password</label>
             <input type="password" name="password" required>
