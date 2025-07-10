@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block title %}BTS Dashboard | EOBI Certificate Tracker{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h2 style="text-align:center; margin-bottom:24px;">BTS Dashboard – {{ region.name }} ({{ region.code }})</h2>
+    
+    <!-- BTS Email and Google Drive Integration -->
+    <div class="section-title" style="margin-bottom:16px;">Integration Settings</div>
+    <div class="integration-settings" style="background:#e8eefa;padding:18px 28px; border-radius:8px; margin-bottom:34px;">
+        <form method="POST" action="{{ url_for('bts_update_settings') }}">
+            <label><b>BTS Regional Email:</b></label>
+            <input type="email" name="bts_email" value="{{ bts_settings.email or '' }}" required style="width:350px;margin-right:10px;">
+            <label><b>Email App Password:</b></label>
+            <input type="password" name="bts_app_password" value="{{ bts_settings.app_password or '' }}" required style="width:220px;">
+            <br>
+            <label><b>Google Drive Folder ID:</b></label>
+            <input type="text" name="drive_folder_id" value="{{ bts_settings.drive_folder_id or '' }}" required style="width:320px;">
+            <button type="submit" class="btn">Update Settings</button>
+        </form>
+        {% if bts_settings.last_updated %}
+            <div style="color: #469318; margin-top:8px;">
+                Last updated: {{ bts_settings.last_updated.strftime('%Y-%m-%d %H:%M') }}
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Certificate Stats -->
+    <div class="stats">
+        <div class="stat-box blue">
+            <div class="stat-label">Total Certificates</div>
+            <div class="stat-value">{{ certs|length }}</div>
+        </div>
+        <div class="stat-box yellow">
+            <div class="stat-label">Pending</div>
+            <div class="stat-value">{{ pending|length }}</div>
+        </div>
+        <div class="stat-box green">
+            <div class="stat-label">Completed</div>
+            <div class="stat-value">{{ completed|length }}</div>
+        </div>
+        <div class="stat-box red">
+            <div class="stat-label">Overdue (15+ days)</div>
+            <div class="stat-value">{{ overdue|length }}</div>
+        </div>
+    </div>
+
+    <!-- Upload new Certificate -->
+    <div style="margin-top:25px;">
+        <a href="{{ url_for('add_certificate') }}" class="btn">Upload New Certificate</a>
+    </div>
+
+    <!-- List of Certificates -->
+    <div style="margin-top:32px;">
+        <div class="section-title">Certificates in {{ region.name }}</div>
+        <table>
+            <tr>
+                <th>Tracking ID</th>
+                <th>Claimant Name</th>
+                <th>CNIC</th>
+                <th>Officer</th>
+                <th>Beat</th>
+                <th>Status</th>
+                <th>Days Pending</th>
+                <th>File</th>
+                <th>Actions</th>
+            </tr>
+            {% for c in certs %}
+            <tr class="{% if c.days_pending >= 15 and c.status == 'pending' %}danger{% elif c.status == 'pending' %}pending{% else %}ok{% endif %}">
+                <td>{{ c.tracking_id }}</td>
+                <td>{{ c.claimant_name }}</td>
+                <td>{{ c.cnic }}</td>
+                <td>{{ c.assigned_officer or '-' }}</td>
+                <td>{{ c.beat_code or '-' }}</td>
+                <td>{{ c.status|capitalize }}</td>
+                <td>{{ c.days_pending }}</td>
+                <td>
+                    {% if c.file_name %}
+                        <a href="{{ url_for('uploaded_file', filename=c.file_name) }}" target="_blank">View</a>
+                    {% else %} - {% endif %}
+                </td>
+                <td>
+                    {% if c.status == 'pending' %}
+                        <a href="{{ url_for('assign_certificate', cert_id=c.id) }}">Assign</a>
+                        {% if c.days_pending >= 15 %}
+                        <a href="{{ url_for('send_reminder', cert_id=c.id) }}" style="color:#d90000;">Send Reminder</a>
+                        {% endif %}
+                    {% endif %}
+                    {% if c.status == 'completed' and not c.is_uploaded_drive %}
+                        <a href="{{ url_for('upload_to_drive', cert_id=c.id) }}" style="color:#3578e5;">Upload to Drive</a>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+
+    <!-- Download CSV Report -->
+    <div style="margin-top:24px;">
+        <a href="{{ url_for('generate_report_bts', region_code=region.code) }}" class="btn">Download Region Report (CSV)</a>
+    </div>
+</div>
+{% endblock %}
