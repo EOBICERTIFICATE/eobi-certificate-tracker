@@ -7,11 +7,11 @@ db = SQLAlchemy()
 class User(UserMixin, db.Model):
     __tablename__ = 'user'
     id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(32), unique=True, nullable=False)
-    email = db.Column(db.String(128), unique=False, nullable=True)
+    username = db.Column(db.String(32), unique=True, nullable=False)  # Officer: 6-digit personal no.
+    email = db.Column(db.String(128), unique=True, nullable=True)
     name = db.Column(db.String(64), nullable=True)
     password = db.Column(db.String(128), nullable=False)
-    role = db.Column(db.String(16), nullable=False)
+    role = db.Column(db.String(16), nullable=False)  # chairman, admin, ddg, rh, drh, bts, officer
     region_code = db.Column(db.String(8), nullable=True)
     beat_code = db.Column(db.String(16), nullable=True)
     must_change_password = db.Column(db.Boolean, default=False)
@@ -19,7 +19,6 @@ class User(UserMixin, db.Model):
     last_login = db.Column(db.DateTime, nullable=True)
     is_active = db.Column(db.Boolean, default=True)
 
-    # For officer: personal no is stored in username
     def get_id(self):
         return str(self.id)
 
@@ -31,7 +30,7 @@ class User(UserMixin, db.Model):
     @staticmethod
     def get_ddg_stats():
         # Returns list of DDGs and their region pendency
-        from .models import Certificate
+        from models import Certificate
         data = []
         ddgs = User.query.filter_by(role="ddg").all()
         for d in ddgs:
@@ -44,6 +43,7 @@ class User(UserMixin, db.Model):
     @staticmethod
     def get_rh_stats(ddg_user):
         # Returns list of RHs under a DDG and their stats
+        from models import Certificate
         data = []
         rhs = User.query.filter_by(role="rh", region_code=ddg_user.region_code).all()
         for r in rhs:
@@ -54,6 +54,7 @@ class User(UserMixin, db.Model):
 
     @staticmethod
     def get_bts_stats(rh_user):
+        from models import Certificate
         data = []
         bts_list = User.query.filter_by(role="bts", region_code=rh_user.region_code).all()
         for b in bts_list:
@@ -64,6 +65,7 @@ class User(UserMixin, db.Model):
 
     @staticmethod
     def get_beat_stats(drh_user):
+        from models import Certificate
         data = []
         officers = User.query.filter_by(role="officer", region_code=drh_user.region_code).all()
         for o in officers:
@@ -86,6 +88,7 @@ class Region(db.Model):
     bts_email = db.Column(db.String(128), nullable=True)      # For BTS incharge email integration
     bts_app_password = db.Column(db.String(64), nullable=True)
     bts_drive_folder = db.Column(db.String(128), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class Certificate(db.Model):
     __tablename__ = 'certificate'
@@ -101,11 +104,10 @@ class Certificate(db.Model):
     assigned_officer = db.Column(db.String(32), nullable=True)
     file_name = db.Column(db.String(128), nullable=True)
     status = db.Column(db.String(32), default="pending")
-    days_pending = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     completed_at = db.Column(db.DateTime, nullable=True)
     cross_verified = db.Column(db.Boolean, default=False)
-    history = db.Column(db.Text, nullable=True)  # Store assignment history (as JSON, comma list, or text)
+    history = db.Column(db.Text, nullable=True)  # Store assignment history (as JSON or text)
 
     def get_pending_days(self):
         return (datetime.utcnow() - self.created_at).days
