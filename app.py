@@ -80,7 +80,24 @@ def dashboard():
     elif current_user.role == "admin":
         regions = Region.query.all()
         bts_list = User.query.filter_by(role="bts").all()
-        return render_template("dashboard_admin.html", user=current_user, regions=regions, bts_list=bts_list, stats=stats)
+        # Calculate per-region pending/overdue
+        region_stats = {}
+        for region in regions:
+            r_pending = Certificate.query.filter_by(region_code=region.code, status="pending").count()
+            r_overdue = Certificate.query.filter(
+                Certificate.region_code==region.code,
+                Certificate.status=="pending",
+                Certificate.created_at < overdue_cutoff
+            ).count()
+            region_stats[region.code] = {"pending": r_pending, "overdue": r_overdue}
+        return render_template(
+            "dashboard_admin.html",
+            user=current_user,
+            regions=regions,
+            bts_list=bts_list,
+            stats=stats,
+            region_stats=region_stats
+        )
     elif current_user.role == "ddg":
         rh_stats = User.get_rh_stats(current_user)
         return render_template("dashboard_ddg.html", user=current_user, rh_stats=rh_stats, stats=stats)
@@ -344,6 +361,7 @@ def manage_officers():
         regions=regions,
         officers=officers
     )
+
 @app.route("/admin/regions")
 @login_required
 def regions():
@@ -353,8 +371,7 @@ def regions():
     all_regions = Region.query.order_by(Region.code).all()
     return render_template("regions.html", user=current_user, regions=all_regions)
 
-
-# ... Add more routes for manage_regions, etc.
+# ... More routes can be added here as needed
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", debug=False)
