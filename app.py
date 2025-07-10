@@ -257,6 +257,56 @@ def run_reminders():
     schedule_reminders()
     flash("Reminders sent!")
     return redirect(url_for("dashboard"))
+    from flask import render_template, request, redirect, url_for, flash
+from flask_login import login_required, current_user
+
+@app.route("/manage_officers", methods=["GET", "POST"])
+@login_required
+def manage_officers():
+    if current_user.role != "admin":
+        flash("Access denied!", "error")
+        return redirect(url_for('dashboard'))
+
+    # Fetch all regions for dropdown and officers for table
+    regions = Region.query.order_by(Region.code).all()
+    officers = User.query.filter_by(role='officer').order_by(User.region_code, User.username).all()
+
+    if request.method == "POST":
+        # Admin is adding a new officer
+        personal_no = request.form.get('personal_no')
+        name = request.form.get('name')
+        email = request.form.get('email')
+        region_code = request.form.get('region_code')
+        
+        # Basic checks
+        if not (personal_no and name and email and region_code):
+            flash("All fields are required!", "error")
+        elif User.query.filter_by(username=personal_no).first():
+            flash("Officer with this Personal No already exists.", "error")
+        else:
+            # Create officer account with random password
+            password = random_password(8)
+            hashed_pw = bcrypt.generate_password_hash(password).decode('utf-8')
+            officer = User(
+                username=personal_no,
+                name=name,
+                email=email,
+                password=hashed_pw,
+                role='officer',
+                region_code=region_code,
+                must_change_password=True
+            )
+            db.session.add(officer)
+            db.session.commit()
+            # Optionally send login info email here!
+            flash(f"Officer added. Username: {personal_no} (Password sent to email)", "success")
+        return redirect(url_for("manage_officers"))
+    return render_template(
+        "manage_officers.html",
+        regions=regions,
+        officers=officers
+    )
+
 
 # ---- Other routes: manage regions, officers, etc. as per your templates ----
 # Add manage_regions, manage_officers, certificates, reports, etc. here as required.
