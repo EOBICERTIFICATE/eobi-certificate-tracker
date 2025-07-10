@@ -12,8 +12,6 @@
         input[type=text], input[type=password] {width: 100%; padding: 10px; border-radius: 6px; border:1px solid #ccc; margin-bottom: 18px;}
         button {width: 100%; padding: 10px; background: #15253e; color: #fff; border: none; border-radius: 6px; font-size: 18px;}
         .msg {color:red; text-align:center;}
-        .search-box {margin-top: 16px;}
-        .search-box input {width: 65%; margin-right: 8px;}
     </style>
 </head>
 <body>
@@ -32,13 +30,6 @@
             <input type="password" name="password" required>
             <button type="submit">Login</button>
         </form>
-        <div class="search-box">
-            <form action="{{ url_for('search_certificate') }}" method="get">
-                <label>Search Claimant File:</label><br>
-                <input type="text" name="search_term" placeholder="Enter CNIC, EOBI#, or name">
-                <button type="submit">Search</button>
-            </form>
-        </div>
     </div>
 </body>
 </html>
