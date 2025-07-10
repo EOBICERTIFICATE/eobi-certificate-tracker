@@ -172,13 +172,11 @@ def setup():
             pw = bcrypt.generate_password_hash('admin123').decode('utf-8')
             user = User(username='mainadmin', password=pw, role='admin', name='Main Admin', must_change_password=True)
             db.session.add(user)
-            db.session.commit()
         # Add chairman for testing
         if not User.query.filter_by(username='chairman').first():
             pw = bcrypt.generate_password_hash('chairman123').decode('utf-8')
             user = User(username='chairman', password=pw, role='chairman', name='Chairman', must_change_password=True)
             db.session.add(user)
-            db.session.commit()
         # Add region mapping on first run
         for reg in REGIONS_BC_MAP:
             if not Region.query.filter_by(code=reg['code']).first():
