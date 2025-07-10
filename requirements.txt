@@ -1,0 +1,12 @@
+Flask>=2.2
+Werkzeug>=2.2
+Flask-Mail
+python-dotenv
+Flask_SQLAlchemy
+Flask-Login
+Flask-Bcrypt
+matplotlib
+reportlab
+google-api-python-client
+google-auth-httplib2
+google-auth-oauthlib
