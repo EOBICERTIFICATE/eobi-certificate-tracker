@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}Reports & Export | EOBI Certificate Tracker{% endblock %}
+
+{% block content %}
+<div class="box" style="max-width: 900px; margin: auto;">
+    <h2>Reports & Data Export</h2>
+    <div style="margin-bottom: 20px;">
+        <form method="GET" action="{{ url_for('download_report') }}">
+            <label for="report_type">Select Report:</label>
+            <select id="report_type" name="report_type">
+                <option value="all">All Certificates</option>
+                <option value="pending">Pending Certificates</option>
+                <option value="completed">Completed Certificates</option>
+                <option value="region">By Region</option>
+                <option value="officer">By Officer</option>
+                <!-- Add more types as needed -->
+            </select>
+            <button type="submit">Download CSV</button>
+        </form>
+    </div>
+
+    <div class="section-title">Summary Stats</div>
+    <table>
+        <tr>
+            <th>Total Certificates</th>
+            <th>Pending</th>
+            <th>Completed</th>
+            <th>Oldest Pending (Days)</th>
+        </tr>
+        <tr>
+            <td>{{ stats.total }}</td>
+            <td>{{ stats.pending }}</td>
+            <td>{{ stats.completed }}</td>
+            <td>{{ stats.oldest_pending }}</td>
+        </tr>
+    </table>
+
+    <div class="section-title" style="margin-top:30px;">Recent Certificates</div>
+    <table>
+        <tr>
+            <th>Tracking ID</th>
+            <th>Claimant Name</th>
+            <th>Region</th>
+            <th>Status</th>
+            <th>Created</th>
+        </tr>
+        {% for c in recent_certificates %}
+        <tr>
+            <td>{{ c.tracking_id }}</td>
+            <td>{{ c.claimant_name }}</td>
+            <td>{{ c.region_code }}</td>
+            <td>{{ c.status|capitalize }}</td>
+            <td>{{ c.created_at.strftime('%Y-%m-%d') }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+</div>
+{% endblock %}
