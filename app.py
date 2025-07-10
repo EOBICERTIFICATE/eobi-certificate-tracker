@@ -344,6 +344,15 @@ def manage_officers():
         regions=regions,
         officers=officers
     )
+@app.route("/admin/regions")
+@login_required
+def regions():
+    if current_user.role != "admin":
+        flash("Access denied.")
+        return redirect(url_for("dashboard"))
+    all_regions = Region.query.order_by(Region.code).all()
+    return render_template("regions.html", user=current_user, regions=all_regions)
+
 
 # ... Add more routes for manage_regions, etc.
 
